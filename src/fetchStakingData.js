@@ -8,6 +8,7 @@ dotenv.config();
 const TOKEN_ADDRESS = '0xa023316FA5c85dADF008C611790B3235433e781e';
 const STAKING_ADDRESS = '0xa32cEAff2d60a55ECDF9267BA436e4D18825b8cF';
 const BASE_RPC_URL = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
+const BLOCK_CHUNK_SIZE = 10; // Alchemy free tier limit
 
 // ERC20 Transfer event signature
 const TRANSFER_EVENT_SIGNATURE = 'Transfer(address,address,uint256)';
@@ -20,6 +21,61 @@ const STAKING_EVENT_SIGNATURES = [
   'Staked(address,uint256,uint256)',
   'Deposit(address,uint256,uint256)'
 ];
+
+// Helper function to fetch logs in chunks
+async function fetchLogsInChunks(provider, filter, startBlock, endBlock, chunkSize) {
+  const allLogs = [];
+  let currentBlock = startBlock;
+  const totalBlocks = endBlock - startBlock + 1;
+  const totalChunks = Math.ceil(totalBlocks / chunkSize);
+  let processedChunks = 0;
+
+  console.log(`Fetching logs from block ${startBlock} to ${endBlock}`);
+  console.log(`Total blocks: ${totalBlocks.toLocaleString()}, Processing in ${totalChunks.toLocaleString()} chunks of ${chunkSize} blocks`);
+
+  while (currentBlock <= endBlock) {
+    const chunkEndBlock = Math.min(currentBlock + chunkSize - 1, endBlock);
+
+    try {
+      const chunkFilter = {
+        ...filter,
+        fromBlock: currentBlock,
+        toBlock: chunkEndBlock
+      };
+
+      const logs = await provider.getLogs(chunkFilter);
+      allLogs.push(...logs);
+
+      processedChunks++;
+      if (processedChunks % 100 === 0 || processedChunks === totalChunks) {
+        const progress = ((processedChunks / totalChunks) * 100).toFixed(1);
+        console.log(`Progress: ${progress}% (${processedChunks}/${totalChunks} chunks, ${allLogs.length} events found)`);
+      }
+
+      currentBlock = chunkEndBlock + 1;
+
+      // Add a small delay to avoid rate limiting
+      if (processedChunks % 10 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+    } catch (error) {
+      console.error(`Error fetching blocks ${currentBlock}-${chunkEndBlock}: ${error.message}`);
+
+      // If we still hit rate limits, add a longer delay and retry
+      if (error.message.includes('rate') || error.message.includes('limit')) {
+        console.log('Rate limited, waiting 2 seconds before retry...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        continue; // Retry the same chunk
+      }
+
+      throw error;
+    }
+  }
+
+  console.log(`\nCompleted! Found ${allLogs.length} total events`);
+  return allLogs;
+}
 
 async function fetchStakingData() {
   console.log('Connecting to Base network...');
@@ -44,24 +100,30 @@ async function fetchStakingData() {
   // We'll track deposits by looking at Transfer events to the staking contract
   const stakingData = {};
 
+  console.log('\n=== Fetching Transfer events to staking contract ===');
+
+  // Create a filter for Transfer events to the staking contract
+  const transferFilter = {
+    address: TOKEN_ADDRESS,
+    topics: [
+      ethers.id(TRANSFER_EVENT_SIGNATURE),
+      null, // from (any address)
+      ethers.zeroPadValue(STAKING_ADDRESS, 32) // to (staking contract)
+    ]
+  };
+
+  // Determine starting block - you can adjust this if you know when the contract was deployed
+  // For Base mainnet, the network launched in August 2023 (around block 0)
+  // If you know the deployment block, set START_BLOCK to that value for faster results
+  const START_BLOCK = process.env.START_BLOCK ? parseInt(process.env.START_BLOCK) : 0;
+
+  console.log(`\nFetching from block ${START_BLOCK} to ${currentBlock} in chunks of ${BLOCK_CHUNK_SIZE}...`);
+  console.log('This will take a while. Progress updates every 100 chunks.\n');
+
   try {
-    console.log('\n=== Method 1: Fetching Transfer events to staking contract ===');
+    const logs = await fetchLogsInChunks(provider, transferFilter, START_BLOCK, currentBlock, BLOCK_CHUNK_SIZE);
 
-    // Create a filter for Transfer events to the staking contract
-    const transferFilter = {
-      address: TOKEN_ADDRESS,
-      topics: [
-        ethers.id(TRANSFER_EVENT_SIGNATURE),
-        null, // from (any address)
-        ethers.zeroPadValue(STAKING_ADDRESS, 32) // to (staking contract)
-      ],
-      fromBlock: 0,
-      toBlock: 'latest'
-    };
-
-    console.log('Fetching transfer events (this may take a while)...');
-    const logs = await provider.getLogs(transferFilter);
-    console.log(`Found ${logs.length} transfer events to staking contract`);
+    console.log(`\nParsing ${logs.length} transfer events...`);
 
     // Parse the logs
     const iface = new ethers.Interface([
@@ -95,90 +157,13 @@ async function fetchStakingData() {
     console.log(`\nProcessed ${Object.keys(stakingData).length} unique stakers`);
 
   } catch (error) {
-    console.error('Error fetching transfer events:', error.message);
-
-    // If the range is too large, suggest using a smaller range
-    if (error.message.includes('range') || error.message.includes('limit')) {
-      console.log('\n⚠️  The block range is too large. Trying with recent blocks...');
-
-      // Try with last 10000 blocks
-      const fromBlock = Math.max(0, currentBlock - 10000);
-      console.log(`Fetching from block ${fromBlock} to ${currentBlock}`);
-
-      const transferFilter = {
-        address: TOKEN_ADDRESS,
-        topics: [
-          ethers.id(TRANSFER_EVENT_SIGNATURE),
-          null,
-          ethers.zeroPadValue(STAKING_ADDRESS, 32)
-        ],
-        fromBlock: fromBlock,
-        toBlock: currentBlock
-      };
-
-      const logs = await provider.getLogs(transferFilter);
-      console.log(`Found ${logs.length} transfer events in recent blocks`);
-
-      const iface = new ethers.Interface([
-        'event Transfer(address indexed from, address indexed to, uint256 value)'
-      ]);
-
-      for (const log of logs) {
-        try {
-          const parsed = iface.parseLog(log);
-          const from = parsed.args.from;
-          const value = parsed.args.value;
-
-          if (!stakingData[from]) {
-            stakingData[from] = {
-              totalStaked: 0n,
-              transactions: []
-            };
-          }
-
-          stakingData[from].totalStaked += value;
-          stakingData[from].transactions.push({
-            amount: value.toString(),
-            blockNumber: log.blockNumber,
-            transactionHash: log.transactionHash
-          });
-        } catch (parseError) {
-          console.error(`Error parsing log: ${parseError.message}`);
-        }
-      }
-    }
+    console.error('Error fetching transfer events:', error);
+    throw error;
   }
 
-  // Try to fetch staking-specific events as well
-  try {
-    console.log('\n=== Method 2: Attempting to fetch Staking contract events ===');
-
-    for (const eventSig of STAKING_EVENT_SIGNATURES) {
-      try {
-        const stakingFilter = {
-          address: STAKING_ADDRESS,
-          topics: [ethers.id(eventSig)],
-          fromBlock: 0,
-          toBlock: 'latest'
-        };
-
-        console.log(`Trying event: ${eventSig}`);
-        const stakingLogs = await provider.getLogs(stakingFilter);
-
-        if (stakingLogs.length > 0) {
-          console.log(`✓ Found ${stakingLogs.length} ${eventSig} events`);
-          // You could parse these events here if needed
-        }
-      } catch (err) {
-        // Silently continue if this event signature doesn't exist
-        if (err.message.includes('range') || err.message.includes('limit')) {
-          console.log(`  ⚠️  Range too large for ${eventSig}, skipping...`);
-        }
-      }
-    }
-  } catch (error) {
-    console.log('Could not fetch staking events:', error.message);
-  }
+  // Note: We're only fetching Transfer events to the staking contract
+  // This gives us all deposits. If you need to track withdrawals as well,
+  // you would also fetch Transfer events FROM the staking contract.
 
   // Convert BigInt to string for JSON serialization
   const outputData = {};

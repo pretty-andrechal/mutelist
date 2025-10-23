@@ -46,9 +46,11 @@ cp .env.example .env
 ```
 
 The default public RPC (`https://mainnet.base.org`) will work, but for better performance, consider using a dedicated RPC provider like:
-- [Alchemy](https://www.alchemy.com/)
+- [Alchemy](https://www.alchemy.com/) - Recommended
 - [Infura](https://www.infura.io/)
 - [QuickNode](https://www.quicknode.com/)
+
+**Note:** The tool automatically fetches data in 10-block chunks to comply with Alchemy's free tier rate limits.
 
 ## Usage
 
@@ -62,12 +64,27 @@ npm start
 
 This will:
 - Connect to the Base network
-- Fetch all Transfer events to the staking contract
+- Fetch all Transfer events to the staking contract in 10-block chunks
+- Show progress updates every 100 chunks
 - Aggregate data by wallet address
 - Save results to `staking_data.json`
 - Display a summary in the terminal
 
-**Note:** The first run may take a few minutes depending on the number of transactions and your RPC provider's rate limits.
+**Performance Notes:**
+- The script fetches data in 10-block chunks to comply with Alchemy free tier limits
+- Base mainnet has millions of blocks, so fetching from genesis will take time
+- Progress is displayed every 100 chunks so you can monitor the process
+- Small delays are added between requests to avoid rate limiting
+- The first run may take **several hours** to fetch all historical data
+
+**Optimization:** If you know when the staking contract was deployed, you can set a starting block to skip empty blocks:
+
+```bash
+# Add to your .env file
+START_BLOCK=10000000  # Replace with actual deployment block
+```
+
+This will significantly speed up the initial data fetch.
 
 ### Step 2: Generate Visualizations
 
@@ -130,13 +147,23 @@ The tool works by:
 
 ## Troubleshooting
 
-### Error: "query returned more than 10000 results"
+### Error: "block range" or "10 block range"
 
-If you encounter this error, the script will automatically retry with a smaller block range (last 10,000 blocks). This is a limitation of some RPC providers.
+The script is designed to work with Alchemy's free tier (10 block limit) and automatically fetches data in 10-block chunks. If you still encounter range errors:
 
 **Solution:**
-- Use a dedicated RPC provider (Alchemy, Infura, QuickNode)
-- Or run the script multiple times to capture different block ranges
+- Ensure you're using the latest version of the code
+- Check your RPC URL is correct in `.env`
+- The script includes automatic retry logic with delays for rate limits
+
+### Slow Performance / Long Fetch Time
+
+Fetching all historical data from block 0 will take several hours due to rate limits and the large number of blocks.
+
+**Solution:**
+- Set `START_BLOCK` in your `.env` file to the block when the staking contract was deployed
+- This skips all blocks before the contract existed and dramatically speeds up fetching
+- You can find the deployment block by checking the contract on BaseScan
 
 ### Error: "Could not read staking_data.json"
 

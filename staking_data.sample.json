@@ -1,0 +1,142 @@
+{
+  "0x1234567890123456789012345678901234567890": {
+    "totalStaked": "5000000000000000000000",
+    "totalStakedFormatted": "5000.0",
+    "transactionCount": 3,
+    "transactions": [
+      {
+        "amount": "2000000000000000000000",
+        "blockNumber": 10000000,
+        "transactionHash": "0xabc123..."
+      },
+      {
+        "amount": "2000000000000000000000",
+        "blockNumber": 10000100,
+        "transactionHash": "0xdef456..."
+      },
+      {
+        "amount": "1000000000000000000000",
+        "blockNumber": 10000200,
+        "transactionHash": "0xghi789..."
+      }
+    ]
+  },
+  "0x2345678901234567890123456789012345678901": {
+    "totalStaked": "3500000000000000000000",
+    "totalStakedFormatted": "3500.0",
+    "transactionCount": 2,
+    "transactions": [
+      {
+        "amount": "2000000000000000000000",
+        "blockNumber": 10000050,
+        "transactionHash": "0xjkl012..."
+      },
+      {
+        "amount": "1500000000000000000000",
+        "blockNumber": 10000150,
+        "transactionHash": "0xmno345..."
+      }
+    ]
+  },
+  "0x3456789012345678901234567890123456789012": {
+    "totalStaked": "2000000000000000000000",
+    "totalStakedFormatted": "2000.0",
+    "transactionCount": 1,
+    "transactions": [
+      {
+        "amount": "2000000000000000000000",
+        "blockNumber": 10000075,
+        "transactionHash": "0xpqr678..."
+      }
+    ]
+  },
+  "0x4567890123456789012345678901234567890123": {
+    "totalStaked": "1500000000000000000000",
+    "totalStakedFormatted": "1500.0",
+    "transactionCount": 1,
+    "transactions": [
+      {
+        "amount": "1500000000000000000000",
+        "blockNumber": 10000120,
+        "transactionHash": "0xstu901..."
+      }
+    ]
+  },
+  "0x5678901234567890123456789012345678901234": {
+    "totalStaked": "1000000000000000000000",
+    "totalStakedFormatted": "1000.0",
+    "transactionCount": 2,
+    "transactions": [
+      {
+        "amount": "500000000000000000000",
+        "blockNumber": 10000080,
+        "transactionHash": "0xvwx234..."
+      },
+      {
+        "amount": "500000000000000000000",
+        "blockNumber": 10000180,
+        "transactionHash": "0xyza567..."
+      }
+    ]
+  },
+  "0x6789012345678901234567890123456789012345": {
+    "totalStaked": "750000000000000000000",
+    "totalStakedFormatted": "750.0",
+    "transactionCount": 1,
+    "transactions": [
+      {
+        "amount": "750000000000000000000",
+        "blockNumber": 10000090,
+        "transactionHash": "0xbcd890..."
+      }
+    ]
+  },
+  "0x7890123456789012345678901234567890123456": {
+    "totalStaked": "500000000000000000000",
+    "totalStakedFormatted": "500.0",
+    "transactionCount": 1,
+    "transactions": [
+      {
+        "amount": "500000000000000000000",
+        "blockNumber": 10000095,
+        "transactionHash": "0xefg123..."
+      }
+    ]
+  },
+  "0x8901234567890123456789012345678901234567": {
+    "totalStaked": "250000000000000000000",
+    "totalStakedFormatted": "250.0",
+    "transactionCount": 1,
+    "transactions": [
+      {
+        "amount": "250000000000000000000",
+        "blockNumber": 10000110,
+        "transactionHash": "0xhij456..."
+      }
+    ]
+  },
+  "0x9012345678901234567890123456789012345678": {
+    "totalStaked": "100000000000000000000",
+    "totalStakedFormatted": "100.0",
+    "transactionCount": 1,
+    "transactions": [
+      {
+        "amount": "100000000000000000000",
+        "blockNumber": 10000130,
+        "transactionHash": "0xklm789..."
+      }
+    ]
+  },
+  "0x0123456789012345678901234567890123456789": {
+    "totalStaked": "50000000000000000000",
+    "totalStakedFormatted": "50.0",
+    "transactionCount": 1,
+    "transactions": [
+      {
+        "amount": "50000000000000000000",
+        "blockNumber": 10000140,
+        "transactionHash": "0xnop012..."
+      }
+    ]
+  }
+}

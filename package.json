@@ -1,0 +1,18 @@
+{
+  "name": "mute-staking-visualization",
+  "version": "1.0.0",
+  "description": "Visualization of wallets staking $MUTE token on Base",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/fetchStakingData.js",
+    "visualize": "node src/visualize.js"
+  },
+  "keywords": ["blockchain", "staking", "visualization", "base", "mute"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ethers": "^6.9.0",
+    "dotenv": "^16.3.1"
+  }
+}

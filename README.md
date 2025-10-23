@@ -19,6 +19,8 @@ This project fetches and visualizes staking data for the $MUTE token, showing wh
 - 🎨 Beautiful terminal output with colored statistics
 - 📋 Detailed table of all stakers with rankings
 - 📊 Distribution analysis by stake size
+- 💾 Automatic progress caching - resume from where you left off if interrupted
+- 🔄 Works with Alchemy free tier (10-block chunk limit)
 
 ## Prerequisites
 
@@ -76,6 +78,18 @@ This will:
 - Progress is displayed every 100 chunks so you can monitor the process
 - Small delays are added between requests to avoid rate limiting
 - The first run may take **several hours** to fetch all historical data
+
+**Automatic Resume/Caching:**
+- ✅ Progress is automatically saved every 100 chunks to `.fetch_cache.json`
+- ✅ If the script is interrupted (Ctrl+C, network error, etc.), just run `npm start` again
+- ✅ The script will automatically resume from the last saved block
+- ✅ No data is lost - all previously processed staking events are preserved
+- ✅ Cache is automatically cleared when data fetch completes successfully
+
+**Example:**
+- Script processes 4,000 chunks and gets interrupted
+- Run `npm start` again - it resumes from chunk 4,001
+- No need to reprocess the first 4,000 chunks
 
 **Optimization:** If you know when the staking contract was deployed, you can set a starting block to skip empty blocks:
 
@@ -169,10 +183,31 @@ Fetching all historical data from block 0 will take several hours due to rate li
 
 Make sure you run `npm start` before `npm run visualize`.
 
-### Slow Performance
+### Starting Fresh / Clearing Cache
 
-- Use a dedicated RPC provider instead of the public endpoint
-- Consider caching the data and only fetching new blocks on subsequent runs
+If you want to start the data fetch from scratch (ignoring cached progress):
+
+```bash
+# Delete the cache file
+rm .fetch_cache.json
+
+# Then run the script
+npm start
+```
+
+The cache is automatically cleared when the script completes successfully, so you typically don't need to manually delete it.
+
+### Script Got Interrupted
+
+No problem! The script saves progress every 100 chunks. Just run `npm start` again and it will automatically resume from where it left off. You'll see a message like:
+
+```
+📦 Found cached progress from 2024-01-15T10:30:00.000Z
+   Last processed block: 12345678
+   Cached stakers: 42
+
+🔄 Resuming from block 12345679
+```
 
 ## Data Structure
 

@@ -9,6 +9,8 @@ const TOKEN_ADDRESS = '0xa023316FA5c85dADF008C611790B3235433e781e';
 const STAKING_ADDRESS = '0xa32cEAff2d60a55ECDF9267BA436e4D18825b8cF';
 const BASE_RPC_URL = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 const BLOCK_CHUNK_SIZE = 10; // Alchemy free tier limit
+const CACHE_FILE = '.fetch_cache.json';
+const SAVE_INTERVAL = 100; // Save cache every N chunks
 
 // ERC20 Transfer event signature
 const TRANSFER_EVENT_SIGNATURE = 'Transfer(address,address,uint256)';
@@ -22,13 +24,92 @@ const STAKING_EVENT_SIGNATURES = [
   'Deposit(address,uint256,uint256)'
 ];
 
-// Helper function to fetch logs in chunks
-async function fetchLogsInChunks(provider, filter, startBlock, endBlock, chunkSize) {
-  const allLogs = [];
+// Cache management functions
+function saveCache(lastProcessedBlock, stakingData) {
+  const cache = {
+    lastProcessedBlock,
+    stakingData: serializeStakingData(stakingData),
+    timestamp: new Date().toISOString(),
+    version: '1.0'
+  };
+
+  try {
+    fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
+  } catch (error) {
+    console.error('Warning: Failed to save cache:', error.message);
+  }
+}
+
+function loadCache() {
+  try {
+    if (!fs.existsSync(CACHE_FILE)) {
+      return null;
+    }
+
+    const cacheContent = fs.readFileSync(CACHE_FILE, 'utf8');
+    const cache = JSON.parse(cacheContent);
+
+    console.log(`\n📦 Found cached progress from ${cache.timestamp}`);
+    console.log(`   Last processed block: ${cache.lastProcessedBlock}`);
+    console.log(`   Cached stakers: ${Object.keys(cache.stakingData).length}`);
+
+    return {
+      lastProcessedBlock: cache.lastProcessedBlock,
+      stakingData: deserializeStakingData(cache.stakingData)
+    };
+  } catch (error) {
+    console.error('Warning: Failed to load cache, starting fresh:', error.message);
+    return null;
+  }
+}
+
+function clearCache() {
+  try {
+    if (fs.existsSync(CACHE_FILE)) {
+      fs.unlinkSync(CACHE_FILE);
+      console.log('✓ Cache cleared');
+    }
+  } catch (error) {
+    console.error('Warning: Failed to clear cache:', error.message);
+  }
+}
+
+// Serialize BigInt values for JSON storage
+function serializeStakingData(stakingData) {
+  const serialized = {};
+  for (const [address, data] of Object.entries(stakingData)) {
+    serialized[address] = {
+      totalStaked: data.totalStaked.toString(),
+      transactions: data.transactions
+    };
+  }
+  return serialized;
+}
+
+// Deserialize back to BigInt
+function deserializeStakingData(serializedData) {
+  const deserialized = {};
+  for (const [address, data] of Object.entries(serializedData)) {
+    deserialized[address] = {
+      totalStaked: BigInt(data.totalStaked),
+      transactions: data.transactions
+    };
+  }
+  return deserialized;
+}
+
+// Helper function to fetch logs in chunks with caching
+async function fetchLogsInChunks(provider, filter, startBlock, endBlock, chunkSize, stakingData) {
   let currentBlock = startBlock;
   const totalBlocks = endBlock - startBlock + 1;
   const totalChunks = Math.ceil(totalBlocks / chunkSize);
   let processedChunks = 0;
+  let totalEventsFound = 0;
+
+  // Interface for parsing Transfer events
+  const iface = new ethers.Interface([
+    'event Transfer(address indexed from, address indexed to, uint256 value)'
+  ]);
 
   console.log(`Fetching logs from block ${startBlock} to ${endBlock}`);
   console.log(`Total blocks: ${totalBlocks.toLocaleString()}, Processing in ${totalChunks.toLocaleString()} chunks of ${chunkSize} blocks`);
@@ -44,15 +125,46 @@ async function fetchLogsInChunks(provider, filter, startBlock, endBlock, chunkSi
       };
 
       const logs = await provider.getLogs(chunkFilter);
-      allLogs.push(...logs);
 
-      processedChunks++;
-      if (processedChunks % 100 === 0 || processedChunks === totalChunks) {
-        const progress = ((processedChunks / totalChunks) * 100).toFixed(1);
-        console.log(`Progress: ${progress}% (${processedChunks}/${totalChunks} chunks, ${allLogs.length} events found)`);
+      // Process logs immediately
+      for (const log of logs) {
+        try {
+          const parsed = iface.parseLog(log);
+          const from = parsed.args.from;
+          const value = parsed.args.value;
+
+          if (!stakingData[from]) {
+            stakingData[from] = {
+              totalStaked: 0n,
+              transactions: []
+            };
+          }
+
+          stakingData[from].totalStaked += value;
+          stakingData[from].transactions.push({
+            amount: value.toString(),
+            blockNumber: log.blockNumber,
+            transactionHash: log.transactionHash
+          });
+
+          totalEventsFound++;
+        } catch (parseError) {
+          console.error(`Error parsing log: ${parseError.message}`);
+        }
       }
 
+      processedChunks++;
       currentBlock = chunkEndBlock + 1;
+
+      // Save cache periodically
+      if (processedChunks % SAVE_INTERVAL === 0) {
+        saveCache(chunkEndBlock, stakingData);
+        const progress = ((processedChunks / totalChunks) * 100).toFixed(1);
+        console.log(`Progress: ${progress}% (${processedChunks}/${totalChunks} chunks, ${totalEventsFound} events, ${Object.keys(stakingData).length} stakers) 💾 Saved`);
+      } else if (processedChunks % 100 === 0 || processedChunks === totalChunks) {
+        const progress = ((processedChunks / totalChunks) * 100).toFixed(1);
+        console.log(`Progress: ${progress}% (${processedChunks}/${totalChunks} chunks, ${totalEventsFound} events, ${Object.keys(stakingData).length} stakers)`);
+      }
 
       // Add a small delay to avoid rate limiting
       if (processedChunks % 10 === 0) {
@@ -61,6 +173,10 @@ async function fetchLogsInChunks(provider, filter, startBlock, endBlock, chunkSi
 
     } catch (error) {
       console.error(`Error fetching blocks ${currentBlock}-${chunkEndBlock}: ${error.message}`);
+
+      // Save cache before potentially crashing
+      saveCache(currentBlock - 1, stakingData);
+      console.log(`💾 Cache saved at block ${currentBlock - 1} before error`);
 
       // If we still hit rate limits, add a longer delay and retry
       if (error.message.includes('rate') || error.message.includes('limit')) {
@@ -73,8 +189,7 @@ async function fetchLogsInChunks(provider, filter, startBlock, endBlock, chunkSi
     }
   }
 
-  console.log(`\nCompleted! Found ${allLogs.length} total events`);
-  return allLogs;
+  console.log(`\nCompleted! Processed ${totalEventsFound} events from ${Object.keys(stakingData).length} unique stakers`);
 }
 
 async function fetchStakingData() {
@@ -97,8 +212,24 @@ async function fetchStakingData() {
   const currentBlock = await provider.getBlockNumber();
   console.log(`Current block: ${currentBlock}`);
 
-  // We'll track deposits by looking at Transfer events to the staking contract
-  const stakingData = {};
+  // Check for cached progress
+  const cache = loadCache();
+  let stakingData = {};
+  let startBlock = process.env.START_BLOCK ? parseInt(process.env.START_BLOCK) : 0;
+
+  if (cache) {
+    stakingData = cache.stakingData;
+    startBlock = cache.lastProcessedBlock + 1;
+
+    if (startBlock > currentBlock) {
+      console.log('✓ Cache is up to date! No new blocks to process.');
+      console.log(`Loaded ${Object.keys(stakingData).length} stakers from cache.`);
+      // Continue to save the final data file
+    } else {
+      console.log(`\n🔄 Resuming from block ${startBlock}`);
+      console.log(`   Skipping ${(startBlock - (process.env.START_BLOCK ? parseInt(process.env.START_BLOCK) : 0)).toLocaleString()} already processed blocks`);
+    }
+  }
 
   console.log('\n=== Fetching Transfer events to staking contract ===');
 
@@ -112,49 +243,14 @@ async function fetchStakingData() {
     ]
   };
 
-  // Determine starting block - you can adjust this if you know when the contract was deployed
-  // For Base mainnet, the network launched in August 2023 (around block 0)
-  // If you know the deployment block, set START_BLOCK to that value for faster results
-  const START_BLOCK = process.env.START_BLOCK ? parseInt(process.env.START_BLOCK) : 0;
-
-  console.log(`\nFetching from block ${START_BLOCK} to ${currentBlock} in chunks of ${BLOCK_CHUNK_SIZE}...`);
-  console.log('This will take a while. Progress updates every 100 chunks.\n');
+  console.log(`\nFetching from block ${startBlock} to ${currentBlock} in chunks of ${BLOCK_CHUNK_SIZE}...`);
+  console.log(`Cache saves automatically every ${SAVE_INTERVAL} chunks.`);
+  console.log('Progress updates every 100 chunks.\n');
 
   try {
-    const logs = await fetchLogsInChunks(provider, transferFilter, START_BLOCK, currentBlock, BLOCK_CHUNK_SIZE);
-
-    console.log(`\nParsing ${logs.length} transfer events...`);
-
-    // Parse the logs
-    const iface = new ethers.Interface([
-      'event Transfer(address indexed from, address indexed to, uint256 value)'
-    ]);
-
-    for (const log of logs) {
-      try {
-        const parsed = iface.parseLog(log);
-        const from = parsed.args.from;
-        const value = parsed.args.value;
-
-        if (!stakingData[from]) {
-          stakingData[from] = {
-            totalStaked: 0n,
-            transactions: []
-          };
-        }
-
-        stakingData[from].totalStaked += value;
-        stakingData[from].transactions.push({
-          amount: value.toString(),
-          blockNumber: log.blockNumber,
-          transactionHash: log.transactionHash
-        });
-      } catch (parseError) {
-        console.error(`Error parsing log: ${parseError.message}`);
-      }
+    if (startBlock <= currentBlock) {
+      await fetchLogsInChunks(provider, transferFilter, startBlock, currentBlock, BLOCK_CHUNK_SIZE, stakingData);
     }
-
-    console.log(`\nProcessed ${Object.keys(stakingData).length} unique stakers`);
 
   } catch (error) {
     console.error('Error fetching transfer events:', error);
@@ -191,6 +287,9 @@ async function fetchStakingData() {
   // Save to file
   fs.writeFileSync('staking_data.json', JSON.stringify(sortedData, null, 2));
   console.log('\n✓ Data saved to staking_data.json');
+
+  // Clear cache after successful completion
+  clearCache();
 
   // Print summary
   console.log('\n=== SUMMARY ===');

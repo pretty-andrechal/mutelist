@@ -212,22 +212,39 @@ async function fetchStakingData() {
   const currentBlock = await provider.getBlockNumber();
   console.log(`Current block: ${currentBlock}`);
 
+  // Determine the block range to scan
+  const configuredStartBlock = process.env.START_BLOCK ? parseInt(process.env.START_BLOCK) : 0;
+  const endBlock = process.env.END_BLOCK ? parseInt(process.env.END_BLOCK) : currentBlock;
+
+  // Validate END_BLOCK
+  if (endBlock > currentBlock) {
+    console.error(`\n⚠️  Error: END_BLOCK (${endBlock}) is greater than current block (${currentBlock})`);
+    console.error('Please set END_BLOCK to a valid block number or remove it to scan to the current block.');
+    process.exit(1);
+  }
+
+  if (process.env.END_BLOCK) {
+    console.log(`Scan range: blocks ${configuredStartBlock.toLocaleString()} to ${endBlock.toLocaleString()} (user specified)`);
+  } else {
+    console.log(`Scan range: blocks ${configuredStartBlock.toLocaleString()} to ${endBlock.toLocaleString()} (current block)`);
+  }
+
   // Check for cached progress
   const cache = loadCache();
   let stakingData = {};
-  let startBlock = process.env.START_BLOCK ? parseInt(process.env.START_BLOCK) : 0;
+  let startBlock = configuredStartBlock;
 
   if (cache) {
     stakingData = cache.stakingData;
     startBlock = cache.lastProcessedBlock + 1;
 
-    if (startBlock > currentBlock) {
+    if (startBlock > endBlock) {
       console.log('✓ Cache is up to date! No new blocks to process.');
       console.log(`Loaded ${Object.keys(stakingData).length} stakers from cache.`);
       // Continue to save the final data file
     } else {
-      console.log(`\n🔄 Resuming from block ${startBlock}`);
-      console.log(`   Skipping ${(startBlock - (process.env.START_BLOCK ? parseInt(process.env.START_BLOCK) : 0)).toLocaleString()} already processed blocks`);
+      console.log(`\n🔄 Resuming from block ${startBlock.toLocaleString()}`);
+      console.log(`   Skipping ${(startBlock - configuredStartBlock).toLocaleString()} already processed blocks`);
     }
   }
 
@@ -243,13 +260,13 @@ async function fetchStakingData() {
     ]
   };
 
-  console.log(`\nFetching from block ${startBlock} to ${currentBlock} in chunks of ${BLOCK_CHUNK_SIZE}...`);
+  console.log(`\nFetching from block ${startBlock.toLocaleString()} to ${endBlock.toLocaleString()} in chunks of ${BLOCK_CHUNK_SIZE}...`);
   console.log(`Cache saves automatically every ${SAVE_INTERVAL} chunks.`);
   console.log('Progress updates every 100 chunks.\n');
 
   try {
-    if (startBlock <= currentBlock) {
-      await fetchLogsInChunks(provider, transferFilter, startBlock, currentBlock, BLOCK_CHUNK_SIZE, stakingData);
+    if (startBlock <= endBlock) {
+      await fetchLogsInChunks(provider, transferFilter, startBlock, endBlock, BLOCK_CHUNK_SIZE, stakingData);
     }
 
   } catch (error) {

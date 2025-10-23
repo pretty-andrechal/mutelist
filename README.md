@@ -91,14 +91,27 @@ This will:
 - Run `npm start` again - it resumes from chunk 4,001
 - No need to reprocess the first 4,000 chunks
 
-**Optimization:** If you know when the staking contract was deployed, you can set a starting block to skip empty blocks:
+**Block Range Configuration:**
+
+You can configure a specific block range to scan by setting START_BLOCK and/or END_BLOCK in your `.env` file:
 
 ```bash
 # Add to your .env file
-START_BLOCK=10000000  # Replace with actual deployment block
+
+# Set starting block (defaults to 0)
+# Useful to skip blocks before the staking contract was deployed
+START_BLOCK=10000000
+
+# Set ending block (defaults to current block)
+# Useful for historical analysis, testing, or scanning specific time periods
+END_BLOCK=15000000
 ```
 
-This will significantly speed up the initial data fetch.
+**Use Cases:**
+- **Skip empty blocks**: Set START_BLOCK to the staking contract deployment block to dramatically speed up fetching
+- **Historical analysis**: Scan a specific time period (e.g., blocks 10M to 15M)
+- **Testing**: Use a small range like START_BLOCK=10000000 and END_BLOCK=10001000 to test with just 1,000 blocks
+- **Incremental updates**: Fetch new data by setting START_BLOCK to your last processed block
 
 ### Step 2: Generate Visualizations
 
@@ -178,6 +191,16 @@ Fetching all historical data from block 0 will take several hours due to rate li
 - Set `START_BLOCK` in your `.env` file to the block when the staking contract was deployed
 - This skips all blocks before the contract existed and dramatically speeds up fetching
 - You can find the deployment block by checking the contract on BaseScan
+- For testing, use both START_BLOCK and END_BLOCK to scan a small range (e.g., 1000 blocks)
+
+### Error: "END_BLOCK is greater than current block"
+
+The END_BLOCK you specified hasn't been mined yet.
+
+**Solution:**
+- Check the current block number on [BaseScan](https://basescan.org/)
+- Set END_BLOCK to a valid block number that exists
+- Or remove END_BLOCK to scan up to the current block
 
 ### Error: "Could not read staking_data.json"
 

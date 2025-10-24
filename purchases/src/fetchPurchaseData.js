@@ -114,7 +114,7 @@ async function fetchLogsInChunks(provider, stakerAddresses, startBlock, endBlock
   ]);
 
   console.log(`Fetching purchase logs from block ${startBlock} to ${endBlock}`);
-  console.log(`Tracking purchases for ${stakerAddresses.length.toLocaleString()} staker addresses`);
+  console.log(`Tracking purchases for ${stakerAddresses.size.toLocaleString()} staker addresses`);
   console.log(`Total blocks: ${totalBlocks.toLocaleString()}, Processing in ${totalChunks.toLocaleString()} chunks of ${chunkSize} blocks`);
 
   while (currentBlock <= endBlock) {

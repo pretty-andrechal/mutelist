@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node src/fetchStakingData.js",
-    "visualize": "node src/visualize.js"
+    "visualize": "node src/visualize.js",
+    "purchase": "node purchases/src/fetchPurchaseData.js",
+    "purchase:viz": "node purchases/src/visualize.js"
   },
   "keywords": ["blockchain", "staking", "visualization", "base", "mute"],
   "author": "",

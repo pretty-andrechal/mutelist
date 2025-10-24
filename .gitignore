@@ -3,3 +3,6 @@ node_modules/
 *.log
 staking_data.json
 .fetch_cache.json
+purchases/purchase_data.json
+purchases/.purchase_cache.json
+purchases/purchase_visualization.html

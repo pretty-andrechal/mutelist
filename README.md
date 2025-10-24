@@ -1,10 +1,12 @@
-# $MUTE Token Staking Visualization
+# $MUTE Token Analysis Tools
 
-A comprehensive tool to visualize all wallets that have staked $MUTE tokens on the Base blockchain.
+A comprehensive suite of tools to analyze $MUTE token activity on the Base blockchain, including staking and purchase tracking.
 
 ## Overview
 
-This project fetches and visualizes staking data for the $MUTE token, showing which wallet addresses deposited how much $MUTE into the staking contract.
+This project provides two main tools:
+1. **Staking Tracker**: Visualizes all wallets that have staked $MUTE tokens
+2. **Purchase Tracker**: Analyzes token purchases by stakers, showing buying patterns and staking ratios
 
 **Contract Addresses:**
 - Token Contract: `0xa023316FA5c85dADF008C611790B3235433e781e`
@@ -52,11 +54,48 @@ The default public RPC (`https://mainnet.base.org`) will work, but for better pe
 - [Infura](https://www.infura.io/)
 - [QuickNode](https://www.quicknode.com/)
 
-**Note:** The tool automatically fetches data in 10-block chunks to comply with Alchemy's free tier rate limits.
+**Note:** The tools automatically fetch data in 10-block chunks to comply with Alchemy's free tier rate limits.
+
+## Tools Overview
+
+### 1. Staking Tracker
+
+Tracks and visualizes all deposits into the $MUTE staking contract.
+
+**What it does:**
+- Finds all Transfer events TO the staking contract
+- Shows total staked per wallet, transaction counts, and rankings
+- Generates interactive visualizations
+
+**Commands:**
+```bash
+npm start          # Fetch staking data
+npm run visualize  # Generate visualization
+```
+
+### 2. Purchase Tracker
+
+Analyzes $MUTE token purchases by addresses that are staking.
+
+**What it does:**
+- Identifies all stakers from the staking data
+- Tracks all Transfer events TO those staker addresses (purchases)
+- Shows total purchased, first purchase date, and staking ratios
+- Highlights what percentage of purchases went into staking
+
+**Commands:**
+```bash
+npm run purchase      # Fetch purchase data (requires staking_data.json first!)
+npm run purchase:viz  # Generate purchase visualization
+```
+
+**Important:** You must run the staking tracker (`npm start`) first, as the purchase tracker needs the list of staker addresses from `staking_data.json`.
 
 ## Usage
 
-### Step 1: Fetch Staking Data
+### Staking Tracker
+
+#### Step 1: Fetch Staking Data
 
 Run the data fetching script to query the blockchain:
 
@@ -143,25 +182,120 @@ start staking_visualization.html
 
 Or simply open `staking_visualization.html` in your preferred web browser.
 
+### Purchase Tracker
+
+The Purchase Tracker analyzes token purchases by addresses that are already staking.
+
+#### Step 1: Run Staking Tracker First
+
+**IMPORTANT:** You must run the staking tracker first to generate `staking_data.json`:
+
+```bash
+npm start
+```
+
+This creates the list of staker addresses that the purchase tracker will analyze.
+
+#### Step 2: Fetch Purchase Data
+
+```bash
+npm run purchase
+```
+
+This will:
+- Load staker addresses from `staking_data.json`
+- Track all Transfer events TO those addresses (purchases)
+- Show first purchase date and total purchased for each staker
+- Calculate staking ratios (% of purchases that went into staking)
+- Save results to `purchases/purchase_data.json`
+- Display a summary in the terminal
+
+**Performance:** Uses the same chunking and caching approach as the staking tracker. The same START_BLOCK and END_BLOCK environment variables apply.
+
+**Note:** Since this tracks ALL transfers to staker addresses, it will find purchases from any source (DEX swaps, transfers from other wallets, etc.).
+
+#### Step 3: Generate Purchase Visualizations
+
+```bash
+npm run purchase:viz
+```
+
+This will:
+- Read `purchases/purchase_data.json`
+- Display terminal output with purchase statistics
+- Generate an interactive HTML dashboard (`purchases/purchase_visualization.html`)
+
+#### Step 4: View Interactive Dashboard
+
+```bash
+# On Linux/WSL
+xdg-open purchases/purchase_visualization.html
+
+# On macOS
+open purchases/purchase_visualization.html
+
+# On Windows
+start purchases/purchase_visualization.html
+```
+
+### Purchase Tracker Features
+
+**What You'll See:**
+- Total MUTE purchased by each staker
+- Total MUTE staked by each staker
+- Staking ratio (what % of purchases went into staking)
+- First purchase date for each staker
+- Purchase transaction counts
+- Top purchasers ranked by total purchased
+
+**Insights:**
+- Identify whales who purchased large amounts
+- See commitment levels (high staking ratios = strong believers)
+- Track when stakers first started accumulating
+- Compare purchasing patterns across stakers
+
 ## Output Files
 
+**Staking Tracker:**
 - `staking_data.json` - Raw staking data with all wallet addresses and transaction details
 - `staking_visualization.html` - Interactive HTML dashboard with charts and tables
 
+**Purchase Tracker:**
+- `purchases/purchase_data.json` - Purchase data for all stakers
+- `purchases/purchase_visualization.html` - Interactive purchase analysis dashboard
+- `purchases/.purchase_cache.json` - Progress cache (auto-generated, can be deleted to restart)
+
 ## Visualization Features
 
-### Terminal Output
+### Staking Tracker
+
+**Terminal Output:**
 - Overall statistics (total stakers, total staked, averages)
 - Top 20 stakers with ASCII bar charts
 - Stake distribution analysis
 
-### HTML Dashboard
+**HTML Dashboard:**
 - 📊 Interactive charts using Chart.js
 - 📈 Top 10 stakers bar chart
 - 🍩 Stake distribution doughnut chart
 - 📋 Complete sortable table of all stakers
 - 🎨 Beautiful gradient design
 - 📱 Responsive layout
+
+### Purchase Tracker
+
+**Terminal Output:**
+- Overall purchase statistics
+- Top 20 purchasers with ASCII bar charts
+- Purchase amount distribution
+- Staking ratio distribution
+
+**HTML Dashboard:**
+- 📊 Top 10 purchasers comparison (purchased vs staked)
+- 🍩 Staking ratio distribution chart
+- 📋 Complete table showing purchases, stakes, and ratios
+- 📅 First purchase dates for each staker
+- 🎨 Color-coded staking ratios (green = high, yellow = medium, red = low)
 
 ## How It Works
 
